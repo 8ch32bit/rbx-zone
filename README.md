@@ -4,6 +4,7 @@ Fast and secure zone module for roblox appliances
 - Constructors:
 ```
 for the constructor args, TypeOverride: Enum.PartType? (defaults to Enum.PartType.Block) is the part type you want your zone/zones to mimic
+
 ZoneController.new() - @TODO: Create a blank identity zone controller
 ZoneController.fromCFrameAndSize(CFrame: CFrame, Size: Vector3) - @TODO: Create a zone controller from a CFrame and Size
 ZoneController.fromMinAndMax(Min: Vector3, Max: Vector3) - @TODO: Create a zone controller from a Min and Max vector
