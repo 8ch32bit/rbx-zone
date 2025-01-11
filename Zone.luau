@@ -31,32 +31,28 @@ SOFTWARE.
 --!native
 --!optimize 2
 
-local Signal = require(script.Signal)
+local Signal = require(game:GetService("ReplicatedStorage").FastSignal)
 --^ this can either be any signal module you prefer, or my one that comes with the package in the repo
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
 
 --// cached players array
 local CurrentPlayers = Players:GetPlayers()
 
-local PlayerCache = {
-	Data = CurrentPlayers,
-	Size = #CurrentPlayers,
-}
+local PlayerCache = {}
 
 Players.PlayerAdded:Connect(function(Player)
-	local Data = PlayerCache.Data
-	if not table.find(Data, Player) then
-		table.insert(Data, Player)
+	if not table.find(PlayerCache, Player) then
+		table.insert(PlayerCache, Player)
 	end
 end)
 
 Players.PlayerRemoving:Connect(function(Player)
-	local Data = PlayerCache.Data
-	local Index = table.find(Data, Player)
+	local Index = table.find(PlayerCache, Player)
 	if Index then
-		table.remove(Data, Index)
+		table.remove(PlayerCache, Index)
 	end
 end)
 
@@ -142,13 +138,15 @@ ZoneController.__index = ZoneController
 --// constructors
 
 --// TODO: Create a blank identity zone controller
-function ZoneController.new()
+function ZoneController.new(Name: string?)
 	local self = setmetatable({}, ZoneController)
+	self.Name = Name or ""
 	self.Enabled = false
 	self.Zones = {}
 	self.Players = {}
 	self.PlayerEntered = Signal.new()
 	self.PlayerExited = Signal.new()
+	self.ID = HttpService:GenerateGUID(false)
 	return self
 end
 
@@ -181,23 +179,31 @@ end
 
 --// TODO: Create a zone controller based off an instance containing one or more BaseParts
 function ZoneController.fromPackage(Package: Instance)
-	return ZoneController.fromPartArray(Package:GetChildren())
+	local Zone = ZoneController.fromPartArray(Package:GetChildren())
+	Zone.Name = Package.Name
+	return Zone
 end
 
 --// TODO: Create a zone controller based off an instance containing one or more BaseParts (using GetDescendants)
 function ZoneController.fromPackageDescendants(Package: Instance)
-	return ZoneController.fromPartArray(Package:GetDescendants())
+	local Zone = ZoneController.fromPartArray(Package:GetDescendants())
+	Zone.Name = Package.Name
+	return Zone
 end
 
 --// TODO: Create a zone controller based off a BasePart
 function ZoneController.fromBasePart(Part: BasePart)
-	return ZoneController.fromCFrameAndSize(Part.CFrame, Part.Size, Part.Shape)
+	local Zone = ZoneController.fromCFrameAndSize(Part.CFrame, Part.Size, Part.Shape)
+	Zone.Name = Part.Name
+	return Zone
 end
 
 --// TODO: Create a zone controller based off the bounding box of a model
 function ZoneController.fromModel(Model: Model, TypeOverride: Enum.PartType?)
-	return ZoneController.fromCFrameAndSize(Model:GetBoundingBox(), TypeOverride)
-end
+	local Zone = ZoneController.fromCFrameAndSize(Model:GetBoundingBox(), TypeOverride)
+	Zone.Name = Model.Name
+	return Zone
+end	
 
 --// TODO: Create a zone controller based off a Region3
 function ZoneController.fromRegion3(Region: Region3, TypeOverride: Enum.PartType?)
@@ -233,15 +239,15 @@ function ZoneController:Enable()
 	if self.Enabled then
 		return
 	end
-	
+
 	self.Enabled = true
-	
+
 	local Zones = self.Zones
 	local ZonePlayers = self.Players
 	local PlayerEntered = self.PlayerEntered
 	local PlayerExited = self.PlayerExited
-	
-	self.RunnerThread = task.defer(function()
+
+	self.RunnerThread = task.spawn(function()
 		while true do
 			RunService.Heartbeat:Wait()
 			for _, Player in PlayerCache.Data do
@@ -312,6 +318,19 @@ function ZoneController:IsPartBound(Object: BasePart)
 		end
 	end
 	return false
+end
+
+function ZoneController:IsPartArrayBound(Array: { BasePart })
+	for _, Part in Array do
+		if typeof(Part) == "Instance" and Part:IsA("BasePart") and self:IsPartBound(Part) then
+			return true
+		end
+	end
+	return false
+end
+
+function ZoneController:IsPackageBound(Package: Folder | Model)
+	return self:IsPartArrayBound(Package:GetChildren())
 end
 
 function ZoneController:IsPlayerBound(Player: Player)
